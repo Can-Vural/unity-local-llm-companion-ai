@@ -3,22 +3,39 @@ using UnityEngine.AI;
 
 public class npc_movement : MonoBehaviour
 {
-    [SerializeField] Transform target;
-    NavMeshAgent agent;
+    [SerializeField] private Transform target;
+    private NavMeshAgent agent;
+    private SpriteRenderer spriteRenderer;
 
     private void Start()
     {
         agent = GetComponent<NavMeshAgent>();
+
         
-        agent.updateRotation = false; 
-        agent.updateUpAxis = false; 
+        spriteRenderer = GetComponentInChildren<SpriteRenderer>();
+
+       
+        agent.updateRotation = false;
+        agent.updateUpAxis = false;
     }
 
     private void Update()
     {
-        if (target != null)
+        if (target == null) return;
+
+ 
+        agent.SetDestination(target.position);
+
+
+        float relativePositionX = target.position.x - transform.position.x;
+
+        if (relativePositionX > 0.1f)
         {
-            agent.SetDestination(target.position);
+            if (spriteRenderer != null) spriteRenderer.flipX = false;
+        }
+        else if (relativePositionX < -0.1f)
+        {
+            if (spriteRenderer != null) spriteRenderer.flipX = true;
         }
     }
 
