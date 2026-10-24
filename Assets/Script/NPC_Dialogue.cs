@@ -3,23 +3,51 @@ using TMPro;
 
 public class GuardNPC : MonoBehaviour
 {
-    [Header("Ollama and UI References")]
+    [Header("Ollama ve UI Referansları")]
     [SerializeField] private OllamaClient ollamaManager;
     [SerializeField] private TMP_InputField playerInputBox;
     [SerializeField] private TextMeshProUGUI guardDialogueText;
 
-    [Header("Settings")]
+    [Header("Oyuncu Kontrolü")]
+    [SerializeField] private MonoBehaviour playerMovementScript;
+
+    [Header("Ayarlar")]
     [SerializeField] private float interactionRange = 3f;
+
     private Transform playerTransform;
+    private Rigidbody2D playerRb;
     private bool isPlayerNearby = false;
     private bool isChatting = false;
 
     private void Start()
     {
         GameObject player = GameObject.FindGameObjectWithTag("Player");
-        if (player != null) playerTransform = player.transform;
+        if (player != null)
+        {
+            playerTransform = player.transform;
+            playerRb = player.GetComponent<Rigidbody2D>();
 
-        if (playerInputBox != null) playerInputBox.gameObject.SetActive(false);
+            if (playerMovementScript == null)
+            {
+                playerMovementScript = player.GetComponent("PlayerMovement") as MonoBehaviour
+                                    ?? player.GetComponent("BirdMovement") as MonoBehaviour;
+            }
+        }
+
+        // 1. DÜZELTME: Oyuna başlarken ekrandaki "New Text" yazısını siler
+        if (guardDialogueText != null)
+        {
+            guardDialogueText.text = "";
+        }
+
+        if (playerInputBox != null)
+        {
+            playerInputBox.gameObject.SetActive(false);
+
+            // Sadece Enter'a basıldığında mesajı göndermesi için Dinleyici ekliyoruz
+            playerInputBox.onSubmit.RemoveAllListeners();
+            playerInputBox.onSubmit.AddListener(OnPlayerSubmit);
+        }
     }
 
     private void Update()
@@ -29,31 +57,76 @@ public class GuardNPC : MonoBehaviour
         float distance = Vector2.Distance(transform.position, playerTransform.position);
         isPlayerNearby = distance <= interactionRange;
 
-        if (isPlayerNearby && Input.GetKeyDown(KeyCode.E))
+        // E tuşuna basıldığında sohbeti aç/kapat (Yazı yazılırken E tuşunu yutmaz)
+        if (isPlayerNearby && Input.GetKeyDown(KeyCode.E) && (playerInputBox == null || !playerInputBox.isFocused))
         {
-            isChatting = !isChatting;
-            if (playerInputBox != null) playerInputBox.gameObject.SetActive(isChatting);
+            ToggleChat(!isChatting);
+        }
 
-            if (isChatting)
+        // ESC ile sohbetten çıkma
+        if (isChatting && Input.GetKeyDown(KeyCode.Escape))
+        {
+            ToggleChat(false);
+        }
+
+        // Oyuncu muhafızdan uzaklaşırsa sohbeti kapat ve ekrandaki yazıyı sil
+        if (!isPlayerNearby && isChatting)
+        {
+            ToggleChat(false);
+        }
+    }
+
+    private void ToggleChat(bool state)
+    {
+        isChatting = state;
+
+        if (playerInputBox != null)
+        {
+            playerInputBox.gameObject.SetActive(isChatting);
+        }
+
+        // Oyuncu hareketini kilitler / açar
+        if (playerMovementScript != null)
+        {
+            playerMovementScript.enabled = !isChatting;
+        }
+
+        if (playerRb != null)
+        {
+            playerRb.linearVelocity = Vector2.zero;
+        }
+
+        if (isChatting)
+        {
+            guardDialogueText.text = "Muhafız: Dur, yolcu! Buraya yaklaşmaya nasıl cüret edersin?";
+            playerInputBox.ActivateInputField();
+        }
+        else
+        {
+            // 2. DÜZELTME: Sohbet kapandığında ekrandaki eski mesajı siler
+            if (guardDialogueText != null)
             {
-                guardDialogueText.text = "Guard: Halt, traveler! Who are you to dare approach this place?";
-                playerInputBox.ActivateInputField();
+                guardDialogueText.text = "";
             }
         }
     }
 
     public void OnPlayerSubmit(string playerMessage)
     {
-        if (string.IsNullOrEmpty(playerMessage)) return;
+        if (string.IsNullOrWhiteSpace(playerMessage)) return;
 
-        guardDialogueText.text = "Guard is thinking...";
+        guardDialogueText.text = "Muhafız düşünüyor...";
 
-        string prompt = $"You are a strict, suspicious, and stubborn guard NPC protecting a gate in a 2D platformer game. The player said to you: '{playerMessage}'. Give a short, clear, and firm response matching the guard persona, in English.";
+        string prompt = $"Sen 2D bir platform oyununda kapıyı koruyan katı, şüpheci ve inatçı bir muhafız NPC'sisin. Oyuncu sana şöyle söyledi: '{playerMessage}'. Muhafız karakterine uygun, kısa, net ve kararlı bir yanıt ver. Yanıtın kesinlikle Türkçe olmalıdır.";
 
         ollamaManager.AskAI(prompt, (response) => {
-            guardDialogueText.text = "Guard: " + response;
+            guardDialogueText.text = "Muhafız: " + response;
             playerInputBox.text = "";
-            playerInputBox.ActivateInputField();
+
+            if (isChatting)
+            {
+                playerInputBox.ActivateInputField();
+            }
         });
     }
 }

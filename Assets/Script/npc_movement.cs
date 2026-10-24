@@ -8,6 +8,9 @@ public class npc_movement : MonoBehaviour
     [SerializeField] private Transform zone2Target;   // KirmiziAlan_2
     [SerializeField] private GameObject door;         // Kapi
 
+    [Header("Mesafe Ayarları")]
+    [SerializeField] private float followDistance = 1.5f; // Oyuncunun kaç adım gerisinde duracağı mesafe
+
     [Header("Sensör Ayarları (Raycast)")]
     [SerializeField] private float sensorDistance = 3f; // Sensör menzili
     [SerializeField] private LayerMask obstacleLayer;    // Engeller katmanı
@@ -30,20 +33,18 @@ public class npc_movement : MonoBehaviour
     private void Update()
     {
         // 1. AJAN SENSÖR MEKANİZMASI (Raycast Gözlem)
-        // Ajan hareket ettiği yöne doğru bir Raycast (Lazer Sensör) fırlatır ve engelleri algılar.
         Vector2 moveDirection = agent.desiredVelocity.normalized;
         if (moveDirection != Vector2.zero)
         {
             RaycastHit2D hit = Physics2D.Raycast(transform.position, moveDirection, sensorDistance, obstacleLayer);
 
-            // Scene ekranında yeşil/kırmızı sensör çizgisini görmek için:
             if (hit.collider != null)
             {
-                Debug.DrawRay(transform.position, moveDirection * hit.distance, Color.red); // Engel Algılandı!
+                Debug.DrawRay(transform.position, moveDirection * hit.distance, Color.red);
             }
             else
             {
-                Debug.DrawRay(transform.position, moveDirection * sensorDistance, Color.green); // Yol Temiz
+                Debug.DrawRay(transform.position, moveDirection * sensorDistance, Color.green);
             }
         }
 
@@ -53,6 +54,8 @@ public class npc_movement : MonoBehaviour
             case AIState.FollowPlayer:
                 if (target != null)
                 {
+                    // Oyuncuyu takip ederken geride durması için mesafe sınırını ayarla
+                    agent.stoppingDistance = followDistance;
                     agent.SetDestination(target.position);
                 }
                 break;
@@ -60,14 +63,14 @@ public class npc_movement : MonoBehaviour
             case AIState.GoToZone2:
                 if (zone2Target != null)
                 {
+                    // Kırmızı Alana giderken hedefe tam yanaşabilmesi için durma mesafesini sıfırla
+                    agent.stoppingDistance = 0.2f;
                     agent.SetDestination(zone2Target.position);
 
-                    // Ajanın hedefe olan MESAFE SENSORE BAZLI kontrolü
-                    // YENİ HALİ (Kapıyı açıp seni takip etmeye devam eder):
                     if (!agent.pathPending && agent.remainingDistance <= 0.5f)
                     {
                         OpenDoor();
-                        currentState = AIState.FollowPlayer; // <-- BÖYLE DEĞİŞTİR
+                        currentState = AIState.FollowPlayer;
                     }
                 }
                 break;
