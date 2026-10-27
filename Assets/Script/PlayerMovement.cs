@@ -2,75 +2,74 @@ using UnityEngine;
 
 public class PlayerMovement : MonoBehaviour
 {
-    [Header("Movement Settings")]
+    [Header("Uçuş Ayarları")]
     public float moveSpeed = 7f;
-    public float jumpForce = 12f;
-    
-    [Header("Ground Check")]
-    public Transform groundCheck;
-    public float groundCheckRadius = 0.2f;
-    public LayerMask groundLayer;
 
     private Rigidbody2D rb;
+    private SpriteRenderer spriteRenderer;
     private Animator anim;
-    
-    private float moveInput;
-    private bool isGrounded;
-    private bool canDoubleJump;
+    private Vector2 movement;
+    private bool hasIsMovingParam = false;
 
-    private float initialScaleX;
-
-    void Start()
+    private void Start()
     {
         rb = GetComponent<Rigidbody2D>();
+        if (rb == null) rb = GetComponentInChildren<Rigidbody2D>();
+
+        spriteRenderer = GetComponent<SpriteRenderer>();
+        if (spriteRenderer == null) spriteRenderer = GetComponentInChildren<SpriteRenderer>();
+
         anim = GetComponent<Animator>();
+        if (anim == null) anim = GetComponentInChildren<Animator>();
 
-        initialScaleX = Mathf.Abs(transform.localScale.x);
-    }
-
-    void Update()
-    {
-        moveInput = Input.GetAxisRaw("Horizontal");
-
-        isGrounded = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundLayer);
-
-        HandleJump();
-
-        UpdateAnimations();
-    }
-
-    void FixedUpdate()
-    {
-        rb.linearVelocity = new Vector2(moveInput * moveSpeed, rb.linearVelocity.y);
-
-        if (moveInput > 0)
-            transform.localScale = new Vector3(initialScaleX, transform.localScale.y, transform.localScale.z);
-        else if (moveInput < 0)
-            transform.localScale = new Vector3(-initialScaleX, transform.localScale.y, transform.localScale.z);
-    }
-
-    private void HandleJump()
-    {
-        if (Input.GetButtonDown("Jump"))
+        if (rb != null)
         {
-            if (isGrounded)
+            rb.gravityScale = 0f;
+            rb.freezeRotation = true;
+        }
+
+        // Animator bileşeninde 'isMoving' parametresi olup olmadığını güvenle kontrol eder
+        if (anim != null)
+        {
+            foreach (AnimatorControllerParameter param in anim.parameters)
             {
-                rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
-                canDoubleJump = true;
-            }
-            else if (canDoubleJump)
-            {
-                rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
-                canDoubleJump = false;
-                anim.SetTrigger("doubleJump");
+                if (param.name == "isMoving")
+                {
+                    hasIsMovingParam = true;
+                    break;
+                }
             }
         }
     }
 
-    private void UpdateAnimations()
+    private void Update()
     {
-        anim.SetBool("isMoving", moveInput != 0);
-        anim.SetBool("isGrounded", isGrounded);
-        anim.SetFloat("yVelocity", rb.linearVelocity.y);
+        // W/S (Yukarı/Aşağı) ve A/D (Sol/Sağ) girdileri
+        movement.x = Input.GetAxisRaw("Horizontal");
+        movement.y = Input.GetAxisRaw("Vertical");
+
+        // Kuşun bakış yönünü ayarlar
+        if (movement.x > 0 && spriteRenderer != null)
+        {
+            spriteRenderer.flipX = false;
+        }
+        else if (movement.x < 0 && spriteRenderer != null)
+        {
+            spriteRenderer.flipX = true;
+        }
+
+        // 'isMoving' parametresi varsa tetikler, yoksa konsola sarı uyarı atmaz
+        if (anim != null && hasIsMovingParam)
+        {
+            anim.SetBool("isMoving", movement.sqrMagnitude > 0);
+        }
+    }
+
+    private void FixedUpdate()
+    {
+        if (rb != null)
+        {
+            rb.linearVelocity = movement.normalized * moveSpeed;
+        }
     }
 }

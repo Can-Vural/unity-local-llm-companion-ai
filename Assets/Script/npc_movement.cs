@@ -3,23 +3,25 @@ using UnityEngine.AI;
 
 public class npc_movement : MonoBehaviour
 {
-    [Header("Hedefler ve Kapı")]
-    [SerializeField] private Transform target;        // Player
-    [SerializeField] private Transform zone2Target;   // KirmiziAlan_2
-    [SerializeField] private GameObject door;         // Kapi
+    [Header("Hedefler")]
+    [SerializeField] private Transform target; // Player
 
     [Header("Mesafe Ayarları")]
-    [SerializeField] private float followDistance = 1.5f; // Oyuncunun kaç adım gerisinde duracağı mesafe
+    [SerializeField] private float followDistance = 1.5f;
 
     [Header("Sensör Ayarları (Raycast)")]
-    [SerializeField] private float sensorDistance = 3f; // Sensör menzili
-    [SerializeField] private LayerMask obstacleLayer;    // Engeller katmanı
+    [SerializeField] private float sensorDistance = 3f;
+    [SerializeField] private LayerMask obstacleLayer;
 
     private NavMeshAgent agent;
     private SpriteRenderer spriteRenderer;
 
-    public enum AIState { FollowPlayer, GoToZone2, WaitingAtZone2 }
+    public enum AIState { FollowPlayer, GoToZone, WaitingAtZone }
     private AIState currentState = AIState.FollowPlayer;
+
+    // Dinamik Hedefler (Hardcode'u önleyen alanlar)
+    private Transform currentZoneTarget;
+    private GameObject currentDoorToOpen;
 
     private void Start()
     {
@@ -28,6 +30,20 @@ public class npc_movement : MonoBehaviour
 
         agent.updateRotation = false;
         agent.updateUpAxis = false;
+
+        SyncSpeedWithPlayer();
+    }
+
+    private void SyncSpeedWithPlayer()
+    {
+        if (target == null || agent == null) return;
+
+        // Sadece aktif olan PlayerMovement script'ine bakar
+        PlayerMovement playerMove = target.GetComponent<PlayerMovement>();
+        if (playerMove != null)
+        {
+            agent.speed = playerMove.moveSpeed;
+        }
     }
 
     private void Update()
@@ -39,13 +55,9 @@ public class npc_movement : MonoBehaviour
             RaycastHit2D hit = Physics2D.Raycast(transform.position, moveDirection, sensorDistance, obstacleLayer);
 
             if (hit.collider != null)
-            {
                 Debug.DrawRay(transform.position, moveDirection * hit.distance, Color.red);
-            }
             else
-            {
                 Debug.DrawRay(transform.position, moveDirection * sensorDistance, Color.green);
-            }
         }
 
         // 2. DURUM MAKİNESİ (FSM)
@@ -54,18 +66,16 @@ public class npc_movement : MonoBehaviour
             case AIState.FollowPlayer:
                 if (target != null)
                 {
-                    // Oyuncuyu takip ederken geride durması için mesafe sınırını ayarla
                     agent.stoppingDistance = followDistance;
                     agent.SetDestination(target.position);
                 }
                 break;
 
-            case AIState.GoToZone2:
-                if (zone2Target != null)
+            case AIState.GoToZone:
+                if (currentZoneTarget != null)
                 {
-                    // Kırmızı Alana giderken hedefe tam yanaşabilmesi için durma mesafesini sıfırla
                     agent.stoppingDistance = 0.2f;
-                    agent.SetDestination(zone2Target.position);
+                    agent.SetDestination(currentZoneTarget.position);
 
                     if (!agent.pathPending && agent.remainingDistance <= 0.5f)
                     {
@@ -75,7 +85,7 @@ public class npc_movement : MonoBehaviour
                 }
                 break;
 
-            case AIState.WaitingAtZone2:
+            case AIState.WaitingAtZone:
                 break;
         }
 
@@ -89,7 +99,7 @@ public class npc_movement : MonoBehaviour
 
     private void HandleRotation()
     {
-        Transform currentDestination = (currentState == AIState.FollowPlayer) ? target : zone2Target;
+        Transform currentDestination = (currentState == AIState.FollowPlayer) ? target : currentZoneTarget;
 
         if (currentDestination != null)
         {
@@ -106,20 +116,33 @@ public class npc_movement : MonoBehaviour
         }
     }
 
-    public void TriggerZone1()
+    // DİNAMİK GÖREV TETİKLEYİCİSİ (Hangi sensöre basılırsa o hedefi alır)
+    public void CommandGoToZone(Transform zoneTarget, GameObject doorToOpen)
     {
-        if (currentState == AIState.FollowPlayer)
-        {
-            currentState = AIState.GoToZone2;
-        }
+        currentZoneTarget = zoneTarget;
+        currentDoorToOpen = doorToOpen;
+        currentState = AIState.GoToZone;
     }
 
     private void OpenDoor()
     {
-        if (door != null)
+        if (currentDoorToOpen != null)
         {
-            door.SetActive(false);
-            Debug.Log("Kapı Açıldı! LLM Diyaloğu Başlayabilir.");
+            currentDoorToOpen.SetActive(false);
+            Debug.Log($"{currentDoorToOpen.name} başarıyla açıldı!");
+        }
+    }
+
+    public void ResetNPC(Vector3 startPos)
+    {
+        StopAllCoroutines();
+        currentZoneTarget = null;
+        currentDoorToOpen = null;
+        currentState = AIState.FollowPlayer;
+
+        if (agent != null)
+        {
+            agent.Warp(startPos);
         }
     }
 }
