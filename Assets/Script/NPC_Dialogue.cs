@@ -9,6 +9,9 @@ public class GuardNPC : MonoBehaviour
     [SerializeField] private TMP_InputField playerInputBox;
     [SerializeField] private TextMeshProUGUI guardDialogueText;
 
+    [Header("Görev Koşulları")]
+    [SerializeField] private int requiredGold = 5; // İstenen toplam altın sayısı
+
     [Header("Kapı Mantığı")]
     [SerializeField] private GameObject guardDoor;
 
@@ -21,6 +24,7 @@ public class GuardNPC : MonoBehaviour
 
     private Transform playerTransform;
     private Rigidbody2D playerRb;
+    private PlayerInventory playerInventory; // Envanter referansı
     private bool isPlayerNearby = false;
     private bool isChatting = false;
     private bool isWaitingForAI = false; // Çift istek atılmasını önleyen kilit
@@ -41,6 +45,13 @@ public class GuardNPC : MonoBehaviour
         {
             playerTransform = player.transform;
             playerRb = player.GetComponent<Rigidbody2D>();
+
+            // Oyuncudaki PlayerInventory bileşenini alır
+            playerInventory = player.GetComponent<PlayerInventory>();
+            if (playerInventory == null)
+            {
+                playerInventory = player.GetComponentInParent<PlayerInventory>();
+            }
 
             if (playerMovementScript == null)
             {
@@ -107,7 +118,19 @@ public class GuardNPC : MonoBehaviour
         if (isChatting)
         {
             isWaitingForAI = false;
-            ShowTextAnimated("Muhafız: Dur, yolcu! Altının yoksa bu kapıdan geçemezsin.");
+
+            // Altın sayısına göre diyalog açılışı
+            if (playerInventory == null) playerInventory = FindObjectOfType<PlayerInventory>();
+
+            if (playerInventory != null && playerInventory.currentGold < requiredGold)
+            {
+                ShowTextAnimated($"Muhafız: Boşuna gelme! Yeterince altının yok ({playerInventory.currentGold}/{requiredGold}). Önce tüm altınları topla!");
+            }
+            else
+            {
+                ShowTextAnimated("Muhafız: Dur, yolcu! Tüm altınları getirdin mi? Ne teklif ediyorsun?");
+            }
+
             playerInputBox.ActivateInputField();
         }
         else
@@ -126,6 +149,21 @@ public class GuardNPC : MonoBehaviour
         // Cevap bekleniyorsa veya mesaj boşsa ikinci kez istek göndermez
         if (string.IsNullOrWhiteSpace(playerMessage) || isWaitingForAI) return;
 
+        // --- ALTIN KONTROLÜ: ALTIN EKSİKSE LLM İSTEĞİ ATILMAZ ---
+        if (playerInventory == null) playerInventory = FindObjectOfType<PlayerInventory>();
+
+        if (playerInventory != null && playerInventory.currentGold < requiredGold)
+        {
+            ShowTextAnimated($"Muhafız: Yeterince altının yok! ({playerInventory.currentGold}/{requiredGold}) Hepsini toplamadan seninle konuşmam!");
+
+            if (playerInputBox != null)
+            {
+                playerInputBox.text = "";
+                playerInputBox.ActivateInputField();
+            }
+            return; // LLM isteği atılmadan metot burada sonlanır
+        }
+
         isWaitingForAI = true;
 
         if (playerInputBox != null)
@@ -143,11 +181,9 @@ CRITICAL: Output ONLY valid JSON.
 If the player offers ANY bribe (gold, money, coins, jewels, altin, para, kese), set openDoor to true.
 Otherwise set openDoor to false.
 
-EXAMPLE 1 (Bribe offered):
-{{""openDoor"": true, ""reply"": ""Harika, altınları aldım! Geçebilirsin.""}}
+EXAMPLE 1 (Bribe offered):{{""openDoor"": true, ""reply"": ""Harika, altınları aldım! Geçebilirsin.""}}
 
-EXAMPLE 2 (No bribe):
-{{""openDoor"": false, ""reply"": ""Altının yoksa buradan geçiş yok!""}}";
+EXAMPLE 2 (No bribe):{{""openDoor"": false, ""reply"": ""Altının yoksa buradan geçiş yok!""}}";
 
         ollamaManager.AskAI(prompt, (rawResponse, isSuccess) => {
             if (playerInputBox != null)
@@ -231,12 +267,24 @@ EXAMPLE 2 (No bribe):
         }
     }
 
+
     private void OpenGuardDoor()
     {
         if (guardDoor != null)
         {
             guardDoor.SetActive(false);
             Debug.Log("LLM Kararı: Rüşvet kabul edildi, kapı açıldı!");
+
+            // Kapı açıldığında oyuncunun tüm altınlarını sıfırlar
+            if (playerInventory == null)
+            {
+                playerInventory = FindFirstObjectByType<PlayerInventory>();
+            }
+
+            if (playerInventory != null)
+            {
+                playerInventory.ResetGold();
+            }
         }
     }
 }

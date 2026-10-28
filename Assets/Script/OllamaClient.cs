@@ -57,7 +57,7 @@ public class OllamaClient : MonoBehaviour, ILLMService
             if (www.result != UnityWebRequest.Result.Success)
             {
                 Debug.LogError($"[Ollama Hatalı]: {www.error}");
-                callback?.Invoke("Bağlantı hatası: Muhafız şu an yanıt veremiyor.", false);
+                callback?.Invoke("Muhafız mal mal sana bakıyor.", false);
             }
             else
             {
