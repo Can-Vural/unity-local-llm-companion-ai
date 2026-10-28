@@ -13,6 +13,8 @@ public class PlayerMovement : MonoBehaviour
 
     private void Start()
     {
+        Application.targetFrameRate = 60;
+        QualitySettings.vSyncCount = 1;
         rb = GetComponent<Rigidbody2D>();
         if (rb == null) rb = GetComponentInChildren<Rigidbody2D>();
 

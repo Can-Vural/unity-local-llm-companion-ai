@@ -2,39 +2,43 @@ using UnityEngine;
 using UnityEngine.Networking;
 using System.Collections;
 using System.Text;
+using System;
 
-public class OllamaClient : MonoBehaviour
+public class OllamaClient : MonoBehaviour, ILLMService
 {
-    [Header("Ollama Settings")]
+    [Header("Ollama Ayarları")]
     [SerializeField] private string modelName = "llama3.2";
-    private string apiUrl = "http://localhost:11434/api/generate";
+    [SerializeField] private string apiUrl = "http://localhost:11434/api/generate";
+    [SerializeField] private int timeoutSeconds = 10; // Sunucu yanıt vermezse oyunu kilitlememesi için timeout
 
-    [System.Serializable]
+    [Serializable]
     private class OllamaRequest
     {
         public string model;
         public string prompt;
         public bool stream;
+        public string format; // JSON formatı zorlamak için
     }
 
-    [System.Serializable]
+    [Serializable]
     private class OllamaResponse
     {
         public string response;
     }
 
-    public void AskAI(string promptText, System.Action<string> onResponseReceived)
+    public void AskAI(string promptText, Action<string, bool> onResponseReceived)
     {
         StartCoroutine(PostRequest(promptText, onResponseReceived));
     }
 
-    private IEnumerator PostRequest(string prompt, System.Action<string> callback)
+    private IEnumerator PostRequest(string prompt, Action<string, bool> callback)
     {
         OllamaRequest requestObj = new OllamaRequest
         {
             model = modelName,
             prompt = prompt,
-            stream = false
+            stream = false,
+            format = "json" // Ollama'nın JSON dönmesini garanti eder
         };
 
         string jsonBody = JsonUtility.ToJson(requestObj);
@@ -45,19 +49,29 @@ public class OllamaClient : MonoBehaviour
             www.uploadHandler = new UploadHandlerRaw(bodyRaw);
             www.downloadHandler = new DownloadHandlerBuffer();
             www.SetRequestHeader("Content-Type", "application/json");
+            www.timeout = timeoutSeconds; // Zaman aşımı süresi belirlendi
 
             yield return www.SendWebRequest();
 
+            // Hata Yönetimi: Sunucuya ulaşılamazsa veya zaman aşımına uğrarsa
             if (www.result != UnityWebRequest.Result.Success)
             {
-                Debug.LogError("Ollama Connection Error: " + www.error);
-                callback?.Invoke("Could not establish connection.");
+                Debug.LogError($"[Ollama Hatalı]: {www.error}");
+                callback?.Invoke("Bağlantı hatası: Muhafız şu an yanıt veremiyor.", false);
             }
             else
             {
-                string jsonResponse = www.downloadHandler.text;
-                OllamaResponse res = JsonUtility.FromJson<OllamaResponse>(jsonResponse);
-                callback?.Invoke(res.response);
+                try
+                {
+                    string jsonResponse = www.downloadHandler.text;
+                    OllamaResponse res = JsonUtility.FromJson<OllamaResponse>(jsonResponse);
+                    callback?.Invoke(res.response, true);
+                }
+                catch (Exception e)
+                {
+                    Debug.LogError($"[JSON Ayrıştırma Hatası]: {e.Message}");
+                    callback?.Invoke("Muhafız anlaşılmaz bir şeyler mırıldandı.", false);
+                }
             }
         }
     }

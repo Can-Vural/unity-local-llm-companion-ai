@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.AI;
 
+
 public class npc_movement : MonoBehaviour
 {
     [Header("Hedefler")]
@@ -45,6 +46,8 @@ public class npc_movement : MonoBehaviour
             agent.speed = playerMove.moveSpeed;
         }
     }
+    private float pathUpdateTimer = 0f;
+    private float pathUpdateInterval = 0.15f; // Saniyede ~6 kez yol hesaplar (her frame yerine)
 
     private void Update()
     {
@@ -60,14 +63,24 @@ public class npc_movement : MonoBehaviour
                 Debug.DrawRay(transform.position, moveDirection * sensorDistance, Color.green);
         }
 
-        // 2. DURUM MAKİNESİ (FSM)
+        // 2. PERFORMANS İÇİN ZAMANLAYICI (Timer)
+        pathUpdateTimer += Time.deltaTime;
+        bool shouldUpdatePath = pathUpdateTimer >= pathUpdateInterval;
+
+        // 3. DURUM MAKİNESİ (FSM)
         switch (currentState)
         {
             case AIState.FollowPlayer:
                 if (target != null)
                 {
                     agent.stoppingDistance = followDistance;
-                    agent.SetDestination(target.position);
+
+                    // Her frame (saniyede 60-144 kez) yerine 0.15 saniyede bir SetDestination çağrılır
+                    if (shouldUpdatePath)
+                    {
+                        agent.SetDestination(target.position);
+                        pathUpdateTimer = 0f;
+                    }
                 }
                 break;
 
@@ -75,7 +88,12 @@ public class npc_movement : MonoBehaviour
                 if (currentZoneTarget != null)
                 {
                     agent.stoppingDistance = 0.2f;
-                    agent.SetDestination(currentZoneTarget.position);
+
+                    if (shouldUpdatePath)
+                    {
+                        agent.SetDestination(currentZoneTarget.position);
+                        pathUpdateTimer = 0f;
+                    }
 
                     if (!agent.pathPending && agent.remainingDistance <= 0.5f)
                     {
