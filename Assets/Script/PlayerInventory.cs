@@ -12,7 +12,6 @@ public class PlayerInventory : MonoBehaviour
 
     private void Start()
     {
-        // Inspector'dan atanmadıysa "GoldText" isimli objeyi otomatik bulur
         if (goldTextTMP == null && goldTextLegacy == null)
         {
             GameObject goldObj = GameObject.Find("GoldText");

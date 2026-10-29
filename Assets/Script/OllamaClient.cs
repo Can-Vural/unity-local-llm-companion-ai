@@ -9,7 +9,7 @@ public class OllamaClient : MonoBehaviour, ILLMService
     [Header("Ollama Ayarları")]
     [SerializeField] private string modelName = "llama3.2";
     [SerializeField] private string apiUrl = "http://localhost:11434/api/generate";
-    [SerializeField] private int timeoutSeconds = 10; // Sunucu yanıt vermezse oyunu kilitlememesi için timeout
+    [SerializeField] private int timeoutSeconds = 10; 
 
     [Serializable]
     private class OllamaRequest
@@ -17,7 +17,7 @@ public class OllamaClient : MonoBehaviour, ILLMService
         public string model;
         public string prompt;
         public bool stream;
-        public string format; // JSON formatı zorlamak için
+        public string format; 
     }
 
     [Serializable]
@@ -38,7 +38,7 @@ public class OllamaClient : MonoBehaviour, ILLMService
             model = modelName,
             prompt = prompt,
             stream = false,
-            format = "json" // Ollama'nın JSON dönmesini garanti eder
+            format = "json" 
         };
 
         string jsonBody = JsonUtility.ToJson(requestObj);
@@ -49,11 +49,10 @@ public class OllamaClient : MonoBehaviour, ILLMService
             www.uploadHandler = new UploadHandlerRaw(bodyRaw);
             www.downloadHandler = new DownloadHandlerBuffer();
             www.SetRequestHeader("Content-Type", "application/json");
-            www.timeout = timeoutSeconds; // Zaman aşımı süresi belirlendi
+            www.timeout = timeoutSeconds;
 
             yield return www.SendWebRequest();
 
-            // Hata Yönetimi: Sunucuya ulaşılamazsa veya zaman aşımına uğrarsa
             if (www.result != UnityWebRequest.Result.Success)
             {
                 Debug.LogError($"[Ollama Hatalı]: {www.error}");

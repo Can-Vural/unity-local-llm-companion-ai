@@ -3,13 +3,13 @@ using UnityEngine;
 public class CoinVisuals : MonoBehaviour
 {
     [Header("Yanıp Sönme (Alpha) Ayarları")]
-    [SerializeField] private float blinkSpeed = 4f;       // Yanıp sönme hızı
-    [SerializeField] private float minAlpha = 0.3f;       // En düşük şeffaflık (0 = görünmez, 1 = tam)
-    [SerializeField] private float maxAlpha = 1.0f;       // En yüksek şeffaflık
+    [SerializeField] private float blinkSpeed = 4f;      
+    [SerializeField] private float minAlpha = 0.3f;     
+    [SerializeField] private float maxAlpha = 1.0f;     
 
     [Header("Büyüyüp Küçülme (Pulse) Ayarları")]
-    [SerializeField] private bool enablePulse = true;     // Büyüyüp küçülme aktif mi?
-    [SerializeField] private float pulseAmount = 0.15f;   // Büyüme miktarı
+    [SerializeField] private bool enablePulse = true;     
+    [SerializeField] private float pulseAmount = 0.15f;   
 
     private SpriteRenderer spriteRenderer;
     private Vector3 baseScale;
@@ -22,7 +22,6 @@ public class CoinVisuals : MonoBehaviour
 
     private void Update()
     {
-        // 1. Şeffaflık Yanıp Sönmesi (Alpha Pulse)
         if (spriteRenderer != null)
         {
             float alpha = Mathf.PingPong(Time.time * blinkSpeed, maxAlpha - minAlpha) + minAlpha;
@@ -31,7 +30,6 @@ public class CoinVisuals : MonoBehaviour
             spriteRenderer.color = currentColor;
         }
 
-        // 2. Nefes Alma / Büyüyüp Küçülme Efekti
         if (enablePulse)
         {
             float scaleOffset = Mathf.Sin(Time.time * blinkSpeed) * pulseAmount;

@@ -10,7 +10,7 @@ public class GuardNPC : MonoBehaviour
     [SerializeField] private TextMeshProUGUI guardDialogueText;
 
     [Header("Görev Koşulları")]
-    [SerializeField] private int requiredGold = 5; // İstenen toplam altın sayısı
+    [SerializeField] private int requiredGold = 5; 
 
     [Header("Kapı Mantığı")]
     [SerializeField] private GameObject guardDoor;
@@ -24,10 +24,10 @@ public class GuardNPC : MonoBehaviour
 
     private Transform playerTransform;
     private Rigidbody2D playerRb;
-    private PlayerInventory playerInventory; // Envanter referansı
+    private PlayerInventory playerInventory;
     private bool isPlayerNearby = false;
     private bool isChatting = false;
-    private bool isWaitingForAI = false; // Çift istek atılmasını önleyen kilit
+    private bool isWaitingForAI = false; 
 
     private Coroutine typingCoroutine;
 
@@ -46,7 +46,6 @@ public class GuardNPC : MonoBehaviour
             playerTransform = player.transform;
             playerRb = player.GetComponent<Rigidbody2D>();
 
-            // Oyuncudaki PlayerInventory bileşenini alır
             playerInventory = player.GetComponent<PlayerInventory>();
             if (playerInventory == null)
             {
@@ -119,7 +118,6 @@ public class GuardNPC : MonoBehaviour
         {
             isWaitingForAI = false;
 
-            // Altın sayısına göre diyalog açılışı
             if (playerInventory == null) playerInventory = FindObjectOfType<PlayerInventory>();
 
             if (playerInventory != null && playerInventory.currentGold < requiredGold)
@@ -146,10 +144,8 @@ public class GuardNPC : MonoBehaviour
 
     public void OnPlayerSubmit(string playerMessage)
     {
-        // Cevap bekleniyorsa veya mesaj boşsa ikinci kez istek göndermez
         if (string.IsNullOrWhiteSpace(playerMessage) || isWaitingForAI) return;
 
-        // --- ALTIN KONTROLÜ: ALTIN EKSİKSE LLM İSTEĞİ ATILMAZ ---
         if (playerInventory == null) playerInventory = FindObjectOfType<PlayerInventory>();
 
         if (playerInventory != null && playerInventory.currentGold < requiredGold)
@@ -161,19 +157,18 @@ public class GuardNPC : MonoBehaviour
                 playerInputBox.text = "";
                 playerInputBox.ActivateInputField();
             }
-            return; // LLM isteği atılmadan metot burada sonlanır
+            return;
         }
 
         isWaitingForAI = true;
 
         if (playerInputBox != null)
         {
-            playerInputBox.interactable = false; // Cevap gelene kadar metin kutusunu kilitler
+            playerInputBox.interactable = false;
         }
 
         ShowTextAnimated("Muhafız düşünüyor...");
 
-        // openDoor alanının BAŞA alındığı ve ÖRNEKLİ (Few-Shot) ultra net prompt
         string prompt = $@"
 You are a greedy guard in a game. Player says: '{playerMessage}'
 
@@ -189,10 +184,10 @@ EXAMPLE 2 (No bribe):{{""openDoor"": false, ""reply"": ""Altının yoksa buradan
             if (playerInputBox != null)
             {
                 playerInputBox.text = "";
-                playerInputBox.interactable = true; // Cevap gelince kilit açılır
+                playerInputBox.interactable = true; 
             }
 
-            isWaitingForAI = false; // Yeni mesaj atılabilir hale getirilir
+            isWaitingForAI = false; 
 
             if (!isSuccess)
             {
@@ -275,7 +270,6 @@ EXAMPLE 2 (No bribe):{{""openDoor"": false, ""reply"": ""Altının yoksa buradan
             guardDoor.SetActive(false);
             Debug.Log("LLM Kararı: Rüşvet kabul edildi, kapı açıldı!");
 
-            // Kapı açıldığında oyuncunun tüm altınlarını sıfırlar
             if (playerInventory == null)
             {
                 playerInventory = FindFirstObjectByType<PlayerInventory>();

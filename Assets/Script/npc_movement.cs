@@ -20,7 +20,6 @@ public class npc_movement : MonoBehaviour
     public enum AIState { FollowPlayer, GoToZone, WaitingAtZone }
     private AIState currentState = AIState.FollowPlayer;
 
-    // Dinamik Hedefler (Hardcode'u önleyen alanlar)
     private Transform currentZoneTarget;
     private GameObject currentDoorToOpen;
 
@@ -39,7 +38,6 @@ public class npc_movement : MonoBehaviour
     {
         if (target == null || agent == null) return;
 
-        // Sadece aktif olan PlayerMovement script'ine bakar
         PlayerMovement playerMove = target.GetComponent<PlayerMovement>();
         if (playerMove != null)
         {
@@ -47,11 +45,10 @@ public class npc_movement : MonoBehaviour
         }
     }
     private float pathUpdateTimer = 0f;
-    private float pathUpdateInterval = 0.15f; // Saniyede ~6 kez yol hesaplar (her frame yerine)
+    private float pathUpdateInterval = 0.15f; 
 
     private void Update()
     {
-        // 1. AJAN SENSÖR MEKANİZMASI (Raycast Gözlem)
         Vector2 moveDirection = agent.desiredVelocity.normalized;
         if (moveDirection != Vector2.zero)
         {
@@ -63,11 +60,9 @@ public class npc_movement : MonoBehaviour
                 Debug.DrawRay(transform.position, moveDirection * sensorDistance, Color.green);
         }
 
-        // 2. PERFORMANS İÇİN ZAMANLAYICI (Timer)
         pathUpdateTimer += Time.deltaTime;
         bool shouldUpdatePath = pathUpdateTimer >= pathUpdateInterval;
 
-        // 3. DURUM MAKİNESİ (FSM)
         switch (currentState)
         {
             case AIState.FollowPlayer:
@@ -75,7 +70,6 @@ public class npc_movement : MonoBehaviour
                 {
                     agent.stoppingDistance = followDistance;
 
-                    // Her frame (saniyede 60-144 kez) yerine 0.15 saniyede bir SetDestination çağrılır
                     if (shouldUpdatePath)
                     {
                         agent.SetDestination(target.position);
@@ -134,7 +128,6 @@ public class npc_movement : MonoBehaviour
         }
     }
 
-    // DİNAMİK GÖREV TETİKLEYİCİSİ (Hangi sensöre basılırsa o hedefi alır)
     public void CommandGoToZone(Transform zoneTarget, GameObject doorToOpen)
     {
         currentZoneTarget = zoneTarget;

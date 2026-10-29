@@ -18,7 +18,7 @@ public class Coin : MonoBehaviour
         if (inventory != null)
         {
             inventory.AddGold(coinValue);
-            Destroy(gameObject); // Altını sahneden siler
+            Destroy(gameObject);
         }
         else
         {

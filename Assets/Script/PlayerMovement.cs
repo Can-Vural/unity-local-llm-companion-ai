@@ -30,7 +30,6 @@ public class PlayerMovement : MonoBehaviour
             rb.freezeRotation = true;
         }
 
-        // Animator bileşeninde 'isMoving' parametresi olup olmadığını güvenle kontrol eder
         if (anim != null)
         {
             foreach (AnimatorControllerParameter param in anim.parameters)
@@ -46,11 +45,9 @@ public class PlayerMovement : MonoBehaviour
 
     private void Update()
     {
-        // W/S (Yukarı/Aşağı) ve A/D (Sol/Sağ) girdileri
         movement.x = Input.GetAxisRaw("Horizontal");
         movement.y = Input.GetAxisRaw("Vertical");
-
-        // Kuşun bakış yönünü ayarlar
+        
         if (movement.x > 0 && spriteRenderer != null)
         {
             spriteRenderer.flipX = false;
@@ -60,7 +57,6 @@ public class PlayerMovement : MonoBehaviour
             spriteRenderer.flipX = true;
         }
 
-        // 'isMoving' parametresi varsa tetikler, yoksa konsola sarı uyarı atmaz
         if (anim != null && hasIsMovingParam)
         {
             anim.SetBool("isMoving", movement.sqrMagnitude > 0);

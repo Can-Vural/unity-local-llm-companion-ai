@@ -5,7 +5,7 @@ public class Spike : MonoBehaviour
     [Header("Referanslar")]
     [SerializeField] private Transform player;
     [SerializeField] private npc_movement npcScript;
-    [SerializeField] private GameObject[] doors; // Tüm kapıları tutan dizi
+    [SerializeField] private GameObject[] doors;
 
     private Vector3 playerStartPos;
     private Vector3 npcStartPos;
@@ -41,7 +41,6 @@ public class Spike : MonoBehaviour
 
     private void ResetLevel()
     {
-        // 1. Oyuncuyu başlangıç pozisyonuna taşı ve hızını sıfırla
         if (player != null)
         {
             player.position = playerStartPos;
@@ -51,13 +50,11 @@ public class Spike : MonoBehaviour
             }
         }
 
-        // 2. Yancı NPC'yi başlangıç konumuna taşı ve takibe döndür
         if (npcScript != null)
         {
             npcScript.ResetNPC(npcStartPos);
         }
 
-        // 3. Açılmış olan TÜM kapıları tekrar aktif yap (kapat)
         if (doors != null)
         {
             foreach (GameObject door in doors)
