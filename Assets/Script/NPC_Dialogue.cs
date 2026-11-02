@@ -4,21 +4,18 @@ using System.Collections;
 
 public class GuardNPC : MonoBehaviour
 {
-    [Header("Ollama ve UI Referansları")]
+    [Header("Ollama & UI References")]
     [SerializeField] private OllamaClient ollamaManager;
     [SerializeField] private TMP_InputField playerInputBox;
     [SerializeField] private TextMeshProUGUI guardDialogueText;
 
-    [Header("Görev Koşulları")]
-    [SerializeField] private int requiredGold = 5; 
-
-    [Header("Kapı Mantığı")]
+    [Header("Door Logic")]
     [SerializeField] private GameObject guardDoor;
 
-    [Header("Oyuncu Kontrolü")]
+    [Header("Player Control")]
     [SerializeField] private MonoBehaviour playerMovementScript;
 
-    [Header("Yazı Ayarları")]
+    [Header("Settings")]
     [SerializeField] private float typingSpeed = 0.03f;
     [SerializeField] private float interactionRange = 3f;
 
@@ -34,8 +31,8 @@ public class GuardNPC : MonoBehaviour
     [System.Serializable]
     public class LLMGuardData
     {
-        public string reply;
-        public bool openDoor;
+        public string dialogue;
+        public string action;
     }
 
     private void Start()
@@ -117,18 +114,9 @@ public class GuardNPC : MonoBehaviour
         if (isChatting)
         {
             isWaitingForAI = false;
-
             if (playerInventory == null) playerInventory = FindObjectOfType<PlayerInventory>();
 
-            if (playerInventory != null && playerInventory.currentGold < requiredGold)
-            {
-                ShowTextAnimated($"Muhafız: Boşuna gelme! Yeterince altının yok ({playerInventory.currentGold}/{requiredGold}). Önce tüm altınları topla!");
-            }
-            else
-            {
-                ShowTextAnimated("Muhafız: Dur, yolcu! Tüm altınları getirdin mi? Ne teklif ediyorsun?");
-            }
-
+            ShowTextAnimated("Guard: Halt, traveler! State your business or offer a fine bribe to pass.");
             playerInputBox.ActivateInputField();
         }
         else
@@ -148,17 +136,7 @@ public class GuardNPC : MonoBehaviour
 
         if (playerInventory == null) playerInventory = FindObjectOfType<PlayerInventory>();
 
-        if (playerInventory != null && playerInventory.currentGold < requiredGold)
-        {
-            ShowTextAnimated($"Muhafız: Yeterince altının yok! ({playerInventory.currentGold}/{requiredGold}) Hepsini toplamadan seninle konuşmam!");
-
-            if (playerInputBox != null)
-            {
-                playerInputBox.text = "";
-                playerInputBox.ActivateInputField();
-            }
-            return;
-        }
+        int currentGold = playerInventory != null ? playerInventory.currentGold : 0;
 
         isWaitingForAI = true;
 
@@ -167,18 +145,21 @@ public class GuardNPC : MonoBehaviour
             playerInputBox.interactable = false;
         }
 
-        ShowTextAnimated("Muhafız düşünüyor...");
+        ShowTextAnimated("Guard is thinking...");
 
-        string prompt = $@"
-You are a greedy guard in a game. Player says: '{playerMessage}'
-
-CRITICAL: Output ONLY valid JSON.
-If the player offers ANY bribe (gold, money, coins, jewels, altin, para, kese), set openDoor to true.
-Otherwise set openDoor to false.
-
-EXAMPLE 1 (Bribe offered):{{""openDoor"": true, ""reply"": ""Harika, altınları aldım! Geçebilirsin.""}}
-
-EXAMPLE 2 (No bribe):{{""openDoor"": false, ""reply"": ""Altının yoksa buradan geçiş yok!""}}";
+        string prompt = "You are a greedy, dramatic, and humorous medieval fantasy guard NPC in a 2D game.\n" +
+                        "The player is trying to convince you to open the door.\n" +
+                        "Player's current gold in inventory: " + currentGold + ". (Collecting or having gold is completely optional, just a mechanic).\n" +
+                        "Player's message: '" + playerMessage + "'\n\n" +
+                        "Instructions:\n" +
+                        "1. Be easily persuaded! If the player attempts any form of bribery, clever argument, or good roleplay, you should happily agree to let them pass.\n" +
+                        "2. If you decide to let them pass, set 'action' to 'OPEN_DOOR'. Otherwise, set 'action' to 'NONE'.\n" +
+                        "3. Write your 'dialogue' response in English, staying in character.\n\n" +
+                        "CRITICAL: Output MUST be strictly valid JSON with this exact structure, with no extra text or markdown formatting:\n" +
+                        "{\n" +
+                        "  \"dialogue\": \"Your response in English here\",\n" +
+                        "  \"action\": \"OPEN_DOOR\"\n" +
+                        "}";
 
         ollamaManager.AskAI(prompt, (rawResponse, isSuccess) => {
             if (playerInputBox != null)
@@ -191,49 +172,64 @@ EXAMPLE 2 (No bribe):{{""openDoor"": false, ""reply"": ""Altının yoksa buradan
 
             if (!isSuccess)
             {
-                ShowTextAnimated(rawResponse);
+                ShowTextAnimated("Guard: " + rawResponse);
                 return;
             }
 
-            Debug.Log($"[Ollama Raw Yanıt]: {rawResponse}");
+            Debug.Log("[Ollama Raw Response]: " + rawResponse);
+
+            bool shouldOpenDoor = false;
+            string dialogueText = "";
 
             try
             {
-                LLMGuardData data = JsonUtility.FromJson<LLMGuardData>(rawResponse);
-
-                bool isBribeAccepted = false;
-                if (data != null)
+                string cleanedResponse = rawResponse.Trim();
+                if (cleanedResponse.Contains("```"))
                 {
-                    isBribeAccepted = data.openDoor;
-
-                    if (!isBribeAccepted)
+                    int startIndex = cleanedResponse.IndexOf("```");
+                    int endIndex = cleanedResponse.LastIndexOf("```");
+                    if (startIndex != -1 && endIndex != -1 && endIndex > startIndex)
                     {
-                        string cleanJson = rawResponse.ToLower().Replace(" ", "");
-                        if (cleanJson.Contains("\"opendoor\":true") || cleanJson.Contains("\"opendoor\":\"true\""))
-                        {
-                            isBribeAccepted = true;
-                        }
+                        string sub = cleanedResponse.Substring(startIndex + 3, endIndex - (startIndex + 3));
+                        if (sub.StartsWith("json")) sub = sub.Substring(4);
+                        cleanedResponse = sub.Trim();
                     }
                 }
-
-                if (data != null && !string.IsNullOrEmpty(data.reply))
+                int firstBrace = cleanedResponse.IndexOf('{');
+                int lastBrace = cleanedResponse.LastIndexOf('}');
+                if (firstBrace != -1 && lastBrace != -1 && lastBrace > firstBrace)
                 {
-                    ShowTextAnimated("Muhafız: " + data.reply);
+                    cleanedResponse = cleanedResponse.Substring(firstBrace, (lastBrace - firstBrace) + 1);
+                }
 
-                    if (isBribeAccepted)
+                LLMGuardData data = JsonUtility.FromJson<LLMGuardData>(cleanedResponse);
+
+                if (data != null && !string.IsNullOrEmpty(data.dialogue))
+                {
+                    dialogueText = data.dialogue;
+                    if (!string.IsNullOrEmpty(data.action) && data.action.ToUpper() == "OPEN_DOOR")
                     {
-                        OpenGuardDoor();
+                        shouldOpenDoor = true;
                     }
                 }
                 else
                 {
-                    ShowTextAnimated("Muhafız: Altınlarından bahsetmeyeceksen çekil yolumdan!");
+                    dialogueText = rawResponse;
+                    if (rawResponse.ToUpper().Contains("OPEN_DOOR")) shouldOpenDoor = true;
                 }
             }
             catch (System.Exception ex)
             {
-                Debug.LogError($"[JSON Parse Hatası]: {ex.Message}");
-                ShowTextAnimated("Muhafız: (Paralarını sayıyor, seni duymadı...)");
+                Debug.LogWarning("[JSON Parse Fallback Triggered]: " + ex.Message);
+                dialogueText = "Fine, your persistence is impressive. Go on through!";
+                shouldOpenDoor = true;
+            }
+
+            ShowTextAnimated("Guard: " + dialogueText);
+
+            if (shouldOpenDoor)
+            {
+                OpenGuardDoor();
             }
 
             if (isChatting && playerInputBox != null)
@@ -262,13 +258,12 @@ EXAMPLE 2 (No bribe):{{""openDoor"": false, ""reply"": ""Altının yoksa buradan
         }
     }
 
-
     private void OpenGuardDoor()
     {
         if (guardDoor != null)
         {
             guardDoor.SetActive(false);
-            Debug.Log("LLM Kararı: Rüşvet kabul edildi, kapı açıldı!");
+            Debug.Log("LLM Action: OPEN_DOOR triggered, door opened successfully!");
 
             if (playerInventory == null)
             {

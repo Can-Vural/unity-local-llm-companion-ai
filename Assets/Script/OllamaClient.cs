@@ -6,7 +6,7 @@ using System;
 
 public class OllamaClient : MonoBehaviour, ILLMService
 {
-    [Header("Ollama Ayarları")]
+    [Header("Ollama Settings")]
     [SerializeField] private string modelName = "llama3.2";
     [SerializeField] private string apiUrl = "http://localhost:11434/api/generate";
     [SerializeField] private int timeoutSeconds = 10; 
@@ -55,8 +55,8 @@ public class OllamaClient : MonoBehaviour, ILLMService
 
             if (www.result != UnityWebRequest.Result.Success)
             {
-                Debug.LogError($"[Ollama Hatalı]: {www.error}");
-                callback?.Invoke("Muhafız mal mal sana bakıyor.", false);
+                Debug.LogError("[Ollama Error]: " + www.error);
+                callback?.Invoke("Guard is staring blankly at you.", false);
             }
             else
             {
@@ -68,8 +68,8 @@ public class OllamaClient : MonoBehaviour, ILLMService
                 }
                 catch (Exception e)
                 {
-                    Debug.LogError($"[JSON Ayrıştırma Hatası]: {e.Message}");
-                    callback?.Invoke("Muhafız anlaşılmaz bir şeyler mırıldandı.", false);
+                    Debug.LogError("[JSON Parse Error]: " + e.Message);
+                    callback?.Invoke("Guard mumbled something incomprehensible.", false);
                 }
             }
         }
