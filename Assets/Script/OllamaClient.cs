@@ -13,7 +13,7 @@ public class OllamaClient : MonoBehaviour, ILLMService
 
     [Header("Warm-up Settings")]
     [SerializeField] private bool autoWarmupOnStart = true;
-    [SerializeField] private string warmupPrompt = "hi"; // Modeli RAM/VRAM'e yüklemek için kısa görünmez istek
+    [SerializeField] private string warmupPrompt = "hi"; 
 
     [Serializable]
     private class OllamaRequest
@@ -34,14 +34,13 @@ public class OllamaClient : MonoBehaviour, ILLMService
     {
         if (autoWarmupOnStart)
         {
-            // Oyun açılır açılmaz modeli arka planda uyandıran ısıtma isteği atılır
             StartCoroutine(WarmupRoutine());
         }
     }
 
     private IEnumerator WarmupRoutine()
     {
-        Debug.Log("[OllamaClient]: Modellin belleğe yüklenmesi için ısınma (warm-up) isteği gönderiliyor...");
+        Debug.Log("[OllamaClient]: Modellin belleğe yüklenmesi için (warm-up) isteği gönderiliyor...");
 
         OllamaRequest requestObj = new OllamaRequest
         {
@@ -59,7 +58,6 @@ public class OllamaClient : MonoBehaviour, ILLMService
             www.uploadHandler = new UploadHandlerRaw(bodyRaw);
             www.downloadHandler = new DownloadHandlerBuffer();
             www.SetRequestHeader("Content-Type", "application/json");
-            // Isınma isteğinde model ilk kez yükleneceği için daha uzun bir süre (30 sn) tanıyoruz
             www.timeout = 30;
 
             yield return www.SendWebRequest();
@@ -105,7 +103,7 @@ public class OllamaClient : MonoBehaviour, ILLMService
             if (www.result != UnityWebRequest.Result.Success)
             {
                 Debug.LogError("[Ollama Error]: " + www.error);
-                callback?.Invoke("Guard is staring blankly at you.", false);
+                callback?.Invoke("Go away!", false);
             }
             else
             {

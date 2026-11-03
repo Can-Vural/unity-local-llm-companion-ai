@@ -20,7 +20,6 @@ public class GameEndPortal : MonoBehaviour
     {
         if (isGameEnded) return;
 
-        // Oyuncu portala değdiğinde
         if (other.CompareTag("Player") || other.transform.root.CompareTag("Player"))
         {
             EndGame();
@@ -31,13 +30,11 @@ public class GameEndPortal : MonoBehaviour
     {
         isGameEnded = true;
 
-        // Siyah ekranı ve TEŞEKKÜRLER yazısını aç
         if (winPanel != null)
         {
             winPanel.SetActive(true);
         }
 
-        // Oyunu ve zamanı durdur
         Time.timeScale = 0f;
         Debug.Log("[GameEndPortal]: Oyun tamamlandı! X tuşu bekleniyor...");
     }
@@ -46,7 +43,6 @@ public class GameEndPortal : MonoBehaviour
     {
         if (isGameEnded)
         {
-            // X tuşuna basıldığında oyundan çık
             if (Input.GetKeyDown(KeyCode.X))
             {
                 Debug.Log("[GameEndPortal]: X tuşuna basıldı. Uygulama kapatılıyor...");

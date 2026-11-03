@@ -22,6 +22,10 @@ public class GuardNPC : MonoBehaviour
     [Header("Gold Requirements")]
     [SerializeField] private int requiredGold = 5;
 
+    [Header("Audio Settings")]
+    [SerializeField] private AudioSource audioSource;
+    [SerializeField] private AudioClip rambleSound;
+
     private ILLMService llmService;
     private Transform playerTransform;
     private Rigidbody2D playerRb;
@@ -30,7 +34,6 @@ public class GuardNPC : MonoBehaviour
     private bool isChatting = false;
     private bool isWaitingForAI = false;
 
-    // Kapının açılıp açılmadığını takip eden durum değişkeni
     private bool isDoorOpened = false;
 
     private Coroutine typingCoroutine;
@@ -44,7 +47,15 @@ public class GuardNPC : MonoBehaviour
 
     private void Start()
     {
-        // Interface atamasını doğrulama
+        if (audioSource == null)
+        {
+            audioSource = GetComponent<AudioSource>();
+            if (audioSource == null)
+            {
+                audioSource = gameObject.AddComponent<AudioSource>();
+            }
+        }
+
         if (llmServiceComponent != null && llmServiceComponent is ILLMService service)
         {
             llmService = service;
@@ -118,7 +129,6 @@ public class GuardNPC : MonoBehaviour
 
         if (playerInventory == null) playerInventory = FindObjectOfType<PlayerInventory>();
 
-        // Kapı zaten açıldıysa altın şartı aranmaz
         int currentGold = playerInventory != null ? playerInventory.currentGold : 0;
         bool hasEnoughGold = isDoorOpened || (currentGold >= requiredGold);
 
@@ -157,13 +167,14 @@ public class GuardNPC : MonoBehaviour
             }
             else
             {
-                ShowTextAnimated($"Guard: You do not have enough gold! (Need {requiredGold} gold)");
+                ShowTextAnimated("Guard: You do not have enough gold!");
             }
         }
         else
         {
             isWaitingForAI = false;
             if (typingCoroutine != null) StopCoroutine(typingCoroutine);
+            StopAudio();
             if (guardDialogueText != null)
             {
                 guardDialogueText.text = "";
@@ -177,11 +188,10 @@ public class GuardNPC : MonoBehaviour
 
         if (playerInventory == null) playerInventory = FindObjectOfType<PlayerInventory>();
 
-        // Kapı açılmadıysa ve altın yetersizse engel ol
         int currentGold = playerInventory != null ? playerInventory.currentGold : 0;
         if (!isDoorOpened && currentGold < requiredGold)
         {
-            ShowTextAnimated($"Guard: You do not have enough gold!");
+            ShowTextAnimated("Guard: You do not have enough gold!");
             return;
         }
 
@@ -202,15 +212,15 @@ public class GuardNPC : MonoBehaviour
 
         string prompt = "You are a greedy, dramatic, and humorous medieval fantasy guard NPC in a 2D game.\n" +
                         "The player is trying to convince you to open the door.\n" +
-                        "Player's current gold in inventory: " + currentGold + ". (Collecting or having gold is completely optional, just a mechanic).\n" +
+                        "Player's current gold in inventory: " + currentGold + ".\n" +
                         "Player's message: '" + playerMessage + "'\n\n" +
                         "Instructions:\n" +
                         "1. Be easily persuaded! If the player attempts any form of bribery, clever argument, or good roleplay, you should happily agree to let them pass.\n" +
-                        "2. If you decide to let them pass, set 'action' to 'OPEN_DOOR'. Otherwise, set 'action' to 'NONE'.\n" +
-                        "3. Write your 'dialogue' response in English, staying in character.\n\n" +
-                        "CRITICAL: Output MUST be strictly valid JSON with this exact structure, with no extra text or markdown formatting:\n" +
+                        "2. If you decide to let them pass, set action to OPEN_DOOR. Otherwise, set action to NONE.\n" +
+                        "3. Write your dialogue response in English, staying in character.\n\n" +
+                        "CRITICAL: Output MUST be strictly valid JSON format with keys dialogue and action, with no extra text or markdown formatting:\n" +
                         "{\n" +
-                        "  \"dialogue\": \"Your response in English here\",\n" +
+                        "  \"dialogue\": \"Your response here\",\n" +
                         "  \"action\": \"OPEN_DOOR\"\n" +
                         "}";
 
@@ -225,7 +235,7 @@ public class GuardNPC : MonoBehaviour
 
             if (!isSuccess)
             {
-                ShowTextAnimated("Guard: (Sunucuya ulaşılamadı veya Ollama kapalı!) " + rawResponse);
+                ShowTextAnimated("Guard is looking at you ??) " + rawResponse);
                 if (isChatting && playerInputBox != null) playerInputBox.ActivateInputField();
                 return;
             }
@@ -277,17 +287,14 @@ public class GuardNPC : MonoBehaviour
                 dialogueText = rawResponse;
             }
 
-            // --- GENİŞLETİLMİŞ AKILLI KONTROL ---
             string upperPlayerMsg = playerMessage.ToUpper();
             string upperResponse = rawResponse.ToUpper();
 
-            // Oyuncu mesajı açıkça kapının açılmaması yönündeyse (Don't, Do Not, Stop, No vb.)
             bool isPlayerRejecting = upperPlayerMsg.Contains("DON'T") || upperPlayerMsg.Contains("DO NOT") || upperPlayerMsg.Contains("STOP");
 
             if (!isPlayerRejecting)
             {
-                // Eklenen yeni kabul kelimeleri: YOU'RE ON, DEAL, ACCEPTED, PASS, GO THROUGH, ENTER
-                if (shouldOpenDoor || upperResponse.Contains("\"ACTION\": \"OPEN_DOOR\""))
+                if (shouldOpenDoor || upperResponse.Contains("OPEN_DOOR"))
                 {
                     shouldOpenDoor = true;
                 }
@@ -326,6 +333,7 @@ public class GuardNPC : MonoBehaviour
         if (typingCoroutine != null)
         {
             StopCoroutine(typingCoroutine);
+            StopAudio();
         }
         typingCoroutine = StartCoroutine(TypeTextRoutine(fullText));
     }
@@ -333,10 +341,33 @@ public class GuardNPC : MonoBehaviour
     private IEnumerator TypeTextRoutine(string textToType)
     {
         guardDialogueText.text = "";
+
+        bool isThinkingText = textToType.Contains("thinking");
+
+        if (audioSource != null && rambleSound != null && !isThinkingText)
+        {
+            audioSource.clip = rambleSound;
+            audioSource.loop = true;
+            if (!audioSource.isPlaying)
+            {
+                audioSource.Play();
+            }
+        }
+
         foreach (char letter in textToType.ToCharArray())
         {
             guardDialogueText.text += letter;
             yield return new WaitForSeconds(typingSpeed);
+        }
+
+        StopAudio();
+    }
+
+    private void StopAudio()
+    {
+        if (audioSource != null && audioSource.isPlaying)
+        {
+            audioSource.Stop();
         }
     }
 

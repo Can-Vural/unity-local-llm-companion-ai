@@ -4,11 +4,17 @@ public class Coin : MonoBehaviour
 {
     [SerializeField] private int coinValue = 1;
 
+    private AudioSource audioSource;
+
+    private void Awake()
+    {
+        audioSource = GetComponent<AudioSource>();
+    }
+
     private void OnTriggerEnter2D(Collider2D other)
     {
         Debug.Log($"[Coin Test]: Temas eden obje -> {other.name}");
 
-        // Oyuncuyu veya ebeveynini kontrol eder
         PlayerInventory inventory = other.GetComponent<PlayerInventory>();
         if (inventory == null)
         {
@@ -18,6 +24,12 @@ public class Coin : MonoBehaviour
         if (inventory != null)
         {
             inventory.AddGold(coinValue);
+
+            if (audioSource != null && audioSource.clip != null)
+            {
+                AudioSource.PlayClipAtPoint(audioSource.clip, transform.position);
+            }
+
             Destroy(gameObject);
         }
         else
