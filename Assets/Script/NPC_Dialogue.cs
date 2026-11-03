@@ -5,7 +5,7 @@ using System.Collections;
 public class GuardNPC : MonoBehaviour
 {
     [Header("Ollama & UI References")]
-    [SerializeField] private OllamaClient ollamaManager;
+    [SerializeField] private MonoBehaviour llmServiceComponent;
     [SerializeField] private TMP_InputField playerInputBox;
     [SerializeField] private TextMeshProUGUI guardDialogueText;
 
@@ -19,12 +19,19 @@ public class GuardNPC : MonoBehaviour
     [SerializeField] private float typingSpeed = 0.03f;
     [SerializeField] private float interactionRange = 3f;
 
+    [Header("Gold Requirements")]
+    [SerializeField] private int requiredGold = 5;
+
+    private ILLMService llmService;
     private Transform playerTransform;
     private Rigidbody2D playerRb;
     private PlayerInventory playerInventory;
     private bool isPlayerNearby = false;
     private bool isChatting = false;
-    private bool isWaitingForAI = false; 
+    private bool isWaitingForAI = false;
+
+    // Kapının açılıp açılmadığını takip eden durum değişkeni
+    private bool isDoorOpened = false;
 
     private Coroutine typingCoroutine;
 
@@ -37,6 +44,20 @@ public class GuardNPC : MonoBehaviour
 
     private void Start()
     {
+        // Interface atamasını doğrulama
+        if (llmServiceComponent != null && llmServiceComponent is ILLMService service)
+        {
+            llmService = service;
+        }
+        else
+        {
+            llmService = GetComponent<ILLMService>();
+            if (llmService == null)
+            {
+                llmService = FindFirstObjectByType<OllamaClient>();
+            }
+        }
+
         GameObject player = GameObject.FindGameObjectWithTag("Player");
         if (player != null)
         {
@@ -95,10 +116,16 @@ public class GuardNPC : MonoBehaviour
     {
         isChatting = state;
 
+        if (playerInventory == null) playerInventory = FindObjectOfType<PlayerInventory>();
+
+        // Kapı zaten açıldıysa altın şartı aranmaz
+        int currentGold = playerInventory != null ? playerInventory.currentGold : 0;
+        bool hasEnoughGold = isDoorOpened || (currentGold >= requiredGold);
+
         if (playerInputBox != null)
         {
-            playerInputBox.gameObject.SetActive(isChatting);
-            playerInputBox.interactable = state;
+            playerInputBox.gameObject.SetActive(isChatting && hasEnoughGold);
+            playerInputBox.interactable = state && hasEnoughGold;
         }
 
         if (playerMovementScript != null)
@@ -114,10 +141,24 @@ public class GuardNPC : MonoBehaviour
         if (isChatting)
         {
             isWaitingForAI = false;
-            if (playerInventory == null) playerInventory = FindObjectOfType<PlayerInventory>();
 
-            ShowTextAnimated("Guard: Halt, traveler! State your business or offer a fine bribe to pass.");
-            playerInputBox.ActivateInputField();
+            if (hasEnoughGold)
+            {
+                if (isDoorOpened)
+                {
+                    ShowTextAnimated("Guard: Welcome back, traveler! You may pass freely.");
+                }
+                else
+                {
+                    ShowTextAnimated("Guard: Halt, traveler! State your business or offer a fine bribe to pass.");
+                }
+
+                if (playerInputBox != null) playerInputBox.ActivateInputField();
+            }
+            else
+            {
+                ShowTextAnimated($"Guard: You do not have enough gold! (Need {requiredGold} gold)");
+            }
         }
         else
         {
@@ -136,7 +177,19 @@ public class GuardNPC : MonoBehaviour
 
         if (playerInventory == null) playerInventory = FindObjectOfType<PlayerInventory>();
 
+        // Kapı açılmadıysa ve altın yetersizse engel ol
         int currentGold = playerInventory != null ? playerInventory.currentGold : 0;
+        if (!isDoorOpened && currentGold < requiredGold)
+        {
+            ShowTextAnimated($"Guard: You do not have enough gold!");
+            return;
+        }
+
+        if (llmService == null)
+        {
+            ShowTextAnimated("Guard: (LLM servisi bulunamadı!)");
+            return;
+        }
 
         isWaitingForAI = true;
 
@@ -161,18 +214,19 @@ public class GuardNPC : MonoBehaviour
                         "  \"action\": \"OPEN_DOOR\"\n" +
                         "}";
 
-        ollamaManager.AskAI(prompt, (rawResponse, isSuccess) => {
+        llmService.AskAI(prompt, (rawResponse, isSuccess) => {
             if (playerInputBox != null)
             {
                 playerInputBox.text = "";
-                playerInputBox.interactable = true; 
+                playerInputBox.interactable = true;
             }
 
-            isWaitingForAI = false; 
+            isWaitingForAI = false;
 
             if (!isSuccess)
             {
-                ShowTextAnimated("Guard: " + rawResponse);
+                ShowTextAnimated("Guard: (Sunucuya ulaşılamadı veya Ollama kapalı!) " + rawResponse);
+                if (isChatting && playerInputBox != null) playerInputBox.ActivateInputField();
                 return;
             }
 
@@ -207,7 +261,7 @@ public class GuardNPC : MonoBehaviour
                 if (data != null && !string.IsNullOrEmpty(data.dialogue))
                 {
                     dialogueText = data.dialogue;
-                    if (!string.IsNullOrEmpty(data.action) && data.action.ToUpper() == "OPEN_DOOR")
+                    if (!string.IsNullOrEmpty(data.action) && data.action.Trim().ToUpper() == "OPEN_DOOR")
                     {
                         shouldOpenDoor = true;
                     }
@@ -215,14 +269,42 @@ public class GuardNPC : MonoBehaviour
                 else
                 {
                     dialogueText = rawResponse;
-                    if (rawResponse.ToUpper().Contains("OPEN_DOOR")) shouldOpenDoor = true;
                 }
             }
             catch (System.Exception ex)
             {
                 Debug.LogWarning("[JSON Parse Fallback Triggered]: " + ex.Message);
-                dialogueText = "Fine, your persistence is impressive. Go on through!";
-                shouldOpenDoor = true;
+                dialogueText = rawResponse;
+            }
+
+            // --- GENİŞLETİLMİŞ AKILLI KONTROL ---
+            string upperPlayerMsg = playerMessage.ToUpper();
+            string upperResponse = rawResponse.ToUpper();
+
+            // Oyuncu mesajı açıkça kapının açılmaması yönündeyse (Don't, Do Not, Stop, No vb.)
+            bool isPlayerRejecting = upperPlayerMsg.Contains("DON'T") || upperPlayerMsg.Contains("DO NOT") || upperPlayerMsg.Contains("STOP");
+
+            if (!isPlayerRejecting)
+            {
+                // Eklenen yeni kabul kelimeleri: YOU'RE ON, DEAL, ACCEPTED, PASS, GO THROUGH, ENTER
+                if (shouldOpenDoor || upperResponse.Contains("\"ACTION\": \"OPEN_DOOR\""))
+                {
+                    shouldOpenDoor = true;
+                }
+                else if (upperResponse.Contains("YOU MAY PASS") ||
+                         upperResponse.Contains("I WILL OPEN") ||
+                         upperResponse.Contains("YOU CAN ENTER") ||
+                         upperResponse.Contains("YOU'RE ON") ||
+                         upperResponse.Contains("DEAL") ||
+                         upperResponse.Contains("ACCEPTED") ||
+                         upperResponse.Contains("WHOOP"))
+                {
+                    shouldOpenDoor = true;
+                }
+            }
+            else
+            {
+                shouldOpenDoor = false;
             }
 
             ShowTextAnimated("Guard: " + dialogueText);
@@ -264,6 +346,8 @@ public class GuardNPC : MonoBehaviour
         {
             guardDoor.SetActive(false);
             Debug.Log("LLM Action: OPEN_DOOR triggered, door opened successfully!");
+
+            isDoorOpened = true;
 
             if (playerInventory == null)
             {

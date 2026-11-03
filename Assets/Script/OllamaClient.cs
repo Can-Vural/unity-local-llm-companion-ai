@@ -9,7 +9,11 @@ public class OllamaClient : MonoBehaviour, ILLMService
     [Header("Ollama Settings")]
     [SerializeField] private string modelName = "llama3.2";
     [SerializeField] private string apiUrl = "http://localhost:11434/api/generate";
-    [SerializeField] private int timeoutSeconds = 10; 
+    [SerializeField] private int timeoutSeconds = 10;
+
+    [Header("Warm-up Settings")]
+    [SerializeField] private bool autoWarmupOnStart = true;
+    [SerializeField] private string warmupPrompt = "hi"; // Modeli RAM/VRAM'e yüklemek için kısa görünmez istek
 
     [Serializable]
     private class OllamaRequest
@@ -17,13 +21,58 @@ public class OllamaClient : MonoBehaviour, ILLMService
         public string model;
         public string prompt;
         public bool stream;
-        public string format; 
+        public string format;
     }
 
     [Serializable]
     private class OllamaResponse
     {
         public string response;
+    }
+
+    private void Start()
+    {
+        if (autoWarmupOnStart)
+        {
+            // Oyun açılır açılmaz modeli arka planda uyandıran ısıtma isteği atılır
+            StartCoroutine(WarmupRoutine());
+        }
+    }
+
+    private IEnumerator WarmupRoutine()
+    {
+        Debug.Log("[OllamaClient]: Modellin belleğe yüklenmesi için ısınma (warm-up) isteği gönderiliyor...");
+
+        OllamaRequest requestObj = new OllamaRequest
+        {
+            model = modelName,
+            prompt = warmupPrompt,
+            stream = false,
+            format = "json"
+        };
+
+        string jsonBody = JsonUtility.ToJson(requestObj);
+        byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonBody);
+
+        using (UnityWebRequest www = new UnityWebRequest(apiUrl, "POST"))
+        {
+            www.uploadHandler = new UploadHandlerRaw(bodyRaw);
+            www.downloadHandler = new DownloadHandlerBuffer();
+            www.SetRequestHeader("Content-Type", "application/json");
+            // Isınma isteğinde model ilk kez yükleneceği için daha uzun bir süre (30 sn) tanıyoruz
+            www.timeout = 30;
+
+            yield return www.SendWebRequest();
+
+            if (www.result == UnityWebRequest.Result.Success)
+            {
+                Debug.Log("[OllamaClient]: Isınma isteği başarılı! Model hazır ve belleğe yüklendi.");
+            }
+            else
+            {
+                Debug.LogWarning("[OllamaClient]: Isınma isteğinde uyarı: " + www.error);
+            }
+        }
     }
 
     public void AskAI(string promptText, Action<string, bool> onResponseReceived)
@@ -38,7 +87,7 @@ public class OllamaClient : MonoBehaviour, ILLMService
             model = modelName,
             prompt = prompt,
             stream = false,
-            format = "json" 
+            format = "json"
         };
 
         string jsonBody = JsonUtility.ToJson(requestObj);
