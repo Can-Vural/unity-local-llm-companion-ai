@@ -27,7 +27,6 @@ Companion NPC (`npc_movement.cs`), Unity'nin NavMeshAgent sistemini kullanarak 2
 
 - **FollowPlayer:** Varsayılan durumdur. Oyuncu ile arasındaki belirli bir mesafeyi (`followDistance`) koruyarak sürekli oyuncuyu takip eder.
 - **GoToZone:** Oyuncu mavi veya yeşil bir ZoneSensor'ü tetiklediğinde NPC bu duruma geçer ve hedef bölgeye (`zoneTarget`) ilerler. Bölgeye ulaştığında eşleşen kilitli kapıyı (Door) açar ve tekrar oyuncuyu takip etmeye başlar.
-- **WaitingAtZone:** Bekleme durumudur (Gelecekteki genişletmeler için rezerve edilmiştir).
 
 ### Companion NPC State Diagram
 
